@@ -15,15 +15,25 @@
             --red-color: #F44336;
             --light-gray: #f4f4f4;
             --dark-gray: #333;
+            --mid-gray: #777;
+        }
+        html {
+            height: 100%;
         }
         body {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            flex-direction: column; /* Lays out content vertically */
+            min-height: 100vh; /* Ensures body takes full screen height */
             margin: 0;
             background-color: var(--light-gray);
             color: var(--dark-gray);
+        }
+        main {
+            flex: 1; /* Pushes the footer down */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
         }
         .container {
             width: 90%;
@@ -125,25 +135,41 @@
             font-weight: bold;
             cursor: pointer;
         }
+        /* Footer styling */
+        footer {
+            width: 100%;
+            text-align: center;
+            padding: 1rem;
+            box-sizing: border-box;
+            color: var(--mid-gray);
+            font-size: 0.85rem;
+            flex-shrink: 0; /* Prevents footer from shrinking */
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="formContainer">
-            <h1>ESNcard Checker</h1>
-            <input type="text" id="esnCodeInput" placeholder="Enter or scan card number..." aria-label="ESNcard number">
-            <div class="button-group">
-                <button id="checkButton">Check Status</button>
-                <button id="scanButton">📷 Scan</button>
+    <main>
+        <div class="container">
+            <div id="formContainer">
+                <h1>ESNcard Checker</h1>
+                <input type="text" id="esnCodeInput" placeholder="Enter or scan card number..." aria-label="ESNcard number">
+                <div class="button-group">
+                    <button id="checkButton">Check Status</button>
+                    <button id="scanButton">📷 Scan</button>
+                </div>
+                <div id="statusResult"></div>
             </div>
-            <div id="statusResult"></div>
+            
+            <div id="scannerContainer" style="display: none;">
+                <div id="reader"></div>
+                <button id="stopScanButton">Cancel</button>
+            </div>
         </div>
-        
-        <div id="scannerContainer" style="display: none;">
-            <div id="reader"></div>
-            <button id="stopScanButton">Cancel</button>
-        </div>
-    </div>
+    </main>
+    
+    <footer>
+        <p>&copy; 2025 Flavien Martinot, ESN Switzerland</p>
+    </footer>
 
     <script>
         // DOM Elements
