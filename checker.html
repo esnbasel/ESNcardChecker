@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESNcard Status Checkerrr</title>
+    <title>ESNcard Status Checker</title>
     
-    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
     <style>
         :root {
@@ -99,7 +99,7 @@
         }
         #statusResult span {
             display: block;
-            font-size: 0.9rem;
+            font-synthesis: 0.9rem;
             margin-top: 0.5rem;
             font-weight: normal;
         }
@@ -156,7 +156,7 @@
         const scannerContainer = document.getElementById('scannerContainer');
         let html5QrCode; // Will hold the scanner instance
 
-        // --- API Checking Logic (unchanged) ---
+        // --- API Checking Logic ---
         const checkCardStatus = async () => {
             const esnCode = esnInput.value.trim();
             if (!esnCode) {
@@ -201,7 +201,6 @@
             formContainer.style.display = 'none';
             scannerContainer.style.display = 'block';
             
-            // Lazy-load the scanner instance
             if (!html5QrCode) {
                 html5QrCode = new Html5Qrcode("reader");
             }
@@ -209,13 +208,11 @@
             const qrCodeSuccessCallback = (decodedText, decodedResult) => {
                 esnInput.value = decodedText;
                 hideScanner();
-                // Automatically check the status after a successful scan
                 checkCardStatus();
             };
             
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
             
-            // Start scanning using the back camera
             html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
                 .catch(err => {
                     alert("Could not start scanner. Please grant camera permission and try again.");
