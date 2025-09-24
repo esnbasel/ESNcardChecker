@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESNcard Status Checker</title>
+    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
     <style>
-        /* A modern, clean font stack */
         :root {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
             --primary-color: #00AEEF; /* ESN Blue */
@@ -14,8 +14,6 @@
             --light-gray: #f4f4f4;
             --dark-gray: #333;
         }
-
-        /* Basic body styling for centering content */
         body {
             display: flex;
             justify-content: center;
@@ -25,8 +23,6 @@
             background-color: var(--light-gray);
             color: var(--dark-gray);
         }
-
-        /* Main container for the app */
         .container {
             width: 90%;
             max-width: 400px;
@@ -35,16 +31,14 @@
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             text-align: center;
+            box-sizing: border-box;
         }
-
         h1 {
             color: var(--primary-color);
             margin-top: 0;
             margin-bottom: 1.5rem;
             font-size: 1.8rem;
         }
-
-        /* Input field styling */
         #esnCodeInput {
             width: 100%;
             padding: 12px;
@@ -52,14 +46,15 @@
             border: 1px solid #ccc;
             border-radius: 8px;
             font-size: 1rem;
-            box-sizing: border-box; /* Ensures padding doesn't affect width */
+            box-sizing: border-box;
         }
-
-        /* Button styling */
-        #checkButton {
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .button-group button {
             width: 100%;
             padding: 14px;
-            background-color: var(--primary-color);
             color: white;
             border: none;
             border-radius: 8px;
@@ -68,12 +63,18 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
-
+        #checkButton {
+            background-color: var(--primary-color);
+        }
         #checkButton:hover {
             background-color: #0077B6;
         }
-
-        /* Status result area styling */
+        #scanButton {
+            background-color: #555;
+        }
+        #scanButton:hover {
+            background-color: #333;
+        }
         #statusResult {
             margin-top: 1.5rem;
             padding: 1rem;
@@ -82,69 +83,96 @@
             font-size: 1.2rem;
             display: none; /* Hidden by default */
         }
-        
         #statusResult.active {
             background-color: #e8f5e9;
             color: var(--green-color);
             border: 1px solid var(--green-color);
             display: block;
         }
-
         #statusResult.inactive {
             background-color: #ffebee;
             color: var(--red-color);
             border: 1px solid var(--red-color);
             display: block;
         }
-        
         #statusResult span {
             display: block;
             font-size: 0.9rem;
             margin-top: 0.5rem;
             font-weight: normal;
         }
+        /* Styles for the scanner view */
+        #scannerContainer {
+            width: 100%;
+            text-align: center;
+        }
+        #reader {
+            border: 2px solid #eee;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #stopScanButton {
+            margin-top: 1rem;
+            width: 100%;
+            padding: 12px;
+            background-color: var(--red-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
-
     <div class="container">
-        <h1>ESNcard Checker</h1>
-        <input type="text" id="esnCodeInput" placeholder="Enter ESNcard number..." aria-label="ESNcard number">
-        <button id="checkButton">Check Status</button>
-        <div id="statusResult"></div>
+        <div id="formContainer">
+            <h1>ESNcard Checker</h1>
+            <input type="text" id="esnCodeInput" placeholder="Enter or scan card number..." aria-label="ESNcard number">
+            <div class="button-group">
+                <button id="checkButton">Check Status</button>
+                <button id="scanButton">📷 Scan</button>
+            </div>
+            <div id="statusResult"></div>
+        </div>
+        
+        <div id="scannerContainer" style="display: none;">
+            <div id="reader"></div>
+            <button id="stopScanButton">Cancel</button>
+        </div>
     </div>
 
     <script>
+        // DOM Elements
         const esnInput = document.getElementById('esnCodeInput');
         const checkBtn = document.getElementById('checkButton');
         const statusDiv = document.getElementById('statusResult');
+        const scanBtn = document.getElementById('scanButton');
+        const stopScanBtn = document.getElementById('stopScanButton');
+        const formContainer = document.getElementById('formContainer');
+        const scannerContainer = document.getElementById('scannerContainer');
+        let html5QrCode; // Will hold the scanner instance
 
-        // Function to perform the check
+        // --- API Checking Logic (unchanged) ---
         const checkCardStatus = async () => {
             const esnCode = esnInput.value.trim();
             if (!esnCode) {
                 alert("Please enter an ESNcard number.");
                 return;
             }
+            const originalUrl = `https://esncard.org/services/1.0/card.json?code=${esnCode}`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalUrl)}`;
 
-            const apiUrl = `https://esncard.org/services/1.0/card.json?code=${esnCode}`;
-
-            // Reset previous status and show a loading message
             statusDiv.className = '';
             statusDiv.style.display = 'block';
             statusDiv.textContent = 'Checking... 🤔';
 
             try {
-                const response = await fetch(apiUrl);
-
-                // Handle HTTP errors like 404 Not Found
-                if (!response.ok) {
-                    throw new Error('Card not found or network error.');
-                }
-
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Card not found or network error.');
                 const data = await response.json();
                 
-                // Check if the API returned a valid card object
                 if (Array.isArray(data) && data.length > 0) {
                     const card = data[0];
                     if (card.status === 'active') {
@@ -154,13 +182,11 @@
                             <span>Expires: ${card['expiration-date']}</span>`;
                     } else {
                         statusDiv.className = 'inactive';
-                        statusDiv.textContent = 'Inactive ❌';
+                        statusDiv.textContent = `Status: ${card.status} ❌`;
                     }
                 } else {
-                    // Handle cases where the API returns an empty array for an invalid code
                     throw new Error('Invalid ESNcard number.');
                 }
-
             } catch (error) {
                 console.error('Error fetching card data:', error);
                 statusDiv.className = 'inactive';
@@ -168,16 +194,51 @@
             }
         };
 
-        // Event Listeners
+        // --- Barcode Scanning Logic ---
+        function showScanner() {
+            formContainer.style.display = 'none';
+            scannerContainer.style.display = 'block';
+            
+            // Lazy-load the scanner instance
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+            
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                esnInput.value = decodedText;
+                hideScanner();
+                // Automatically check the status after a successful scan
+                checkCardStatus();
+            };
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            // Start scanning using the back camera
+            html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+                .catch(err => {
+                    alert("Could not start scanner. Please grant camera permission and try again.");
+                    hideScanner();
+                });
+        }
+        
+        function hideScanner() {
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().catch(err => console.error("Failed to stop scanner.", err));
+            }
+            scannerContainer.style.display = 'none';
+            formContainer.style.display = 'block';
+        }
+        
+        // --- Event Listeners ---
         checkBtn.addEventListener('click', checkCardStatus);
-
-        // Allow pressing 'Enter' in the textbox to trigger the check
         esnInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
-                event.preventDefault(); // Prevents default form submission
+                event.preventDefault(); 
                 checkCardStatus();
             }
         });
+        scanBtn.addEventListener('click', showScanner);
+        stopScanBtn.addEventListener('click', hideScanner);
     </script>
 </body>
 </html>
