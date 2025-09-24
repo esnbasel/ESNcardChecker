@@ -99,7 +99,7 @@
         }
         #statusResult span {
             display: block;
-            font-synthesis: 0.9rem;
+            font-size: 0.9rem;
             margin-top: 0.5rem;
             font-weight: normal;
         }
@@ -206,7 +206,13 @@
             }
             
             const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-                esnInput.value = decodedText;
+                // Fix for symbology identifier prefixes in barcodes
+                let cleanedText = decodedText;
+                if (cleanedText.startsWith(']C1')) {
+                    cleanedText = cleanedText.substring(3);
+                }
+
+                esnInput.value = cleanedText; // Use the cleaned text
                 hideScanner();
                 checkCardStatus();
             };
