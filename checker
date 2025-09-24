@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESNcard Status Checker</title>
+    <style>
+        /* A modern, clean font stack */
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            --primary-color: #00AEEF; /* ESN Blue */
+            --green-color: #4CAF50;
+            --red-color: #F44336;
+            --light-gray: #f4f4f4;
+            --dark-gray: #333;
+        }
+
+        /* Basic body styling for centering content */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: var(--light-gray);
+            color: var(--dark-gray);
+        }
+
+        /* Main container for the app */
+        .container {
+            width: 90%;
+            max-width: 400px;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        /* Input field styling */
+        #esnCodeInput {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+        }
+
+        /* Button styling */
+        #checkButton {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #checkButton:hover {
+            background-color: #0077B6;
+        }
+
+        /* Status result area styling */
+        #statusResult {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            display: none; /* Hidden by default */
+        }
+        
+        #statusResult.active {
+            background-color: #e8f5e9;
+            color: var(--green-color);
+            border: 1px solid var(--green-color);
+            display: block;
+        }
+
+        #statusResult.inactive {
+            background-color: #ffebee;
+            color: var(--red-color);
+            border: 1px solid var(--red-color);
+            display: block;
+        }
+        
+        #statusResult span {
+            display: block;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>ESNcard Checker</h1>
+        <input type="text" id="esnCodeInput" placeholder="Enter ESNcard number..." aria-label="ESNcard number">
+        <button id="checkButton">Check Status</button>
+        <div id="statusResult"></div>
+    </div>
+
+    <script>
+        const esnInput = document.getElementById('esnCodeInput');
+        const checkBtn = document.getElementById('checkButton');
+        const statusDiv = document.getElementById('statusResult');
+
+        // Function to perform the check
+        const checkCardStatus = async () => {
+            const esnCode = esnInput.value.trim();
+            if (!esnCode) {
+                alert("Please enter an ESNcard number.");
+                return;
+            }
+
+            const apiUrl = `https://esncard.org/services/1.0/card.json?code=${esnCode}`;
+
+            // Reset previous status and show a loading message
+            statusDiv.className = '';
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Checking... 🤔';
+
+            try {
+                const response = await fetch(apiUrl);
+
+                // Handle HTTP errors like 404 Not Found
+                if (!response.ok) {
+                    throw new Error('Card not found or network error.');
+                }
+
+                const data = await response.json();
+                
+                // Check if the API returned a valid card object
+                if (Array.isArray(data) && data.length > 0) {
+                    const card = data[0];
+                    if (card.status === 'active') {
+                        statusDiv.className = 'active';
+                        statusDiv.innerHTML = `Activated ✅
+                            <span>Section: ${card['section-code']}</span>
+                            <span>Expires: ${card['expiration-date']}</span>`;
+                    } else {
+                        statusDiv.className = 'inactive';
+                        statusDiv.textContent = 'Inactive ❌';
+                    }
+                } else {
+                    // Handle cases where the API returns an empty array for an invalid code
+                    throw new Error('Invalid ESNcard number.');
+                }
+
+            } catch (error) {
+                console.error('Error fetching card data:', error);
+                statusDiv.className = 'inactive';
+                statusDiv.textContent = 'Inactive or Invalid ❌';
+            }
+        };
+
+        // Event Listeners
+        checkBtn.addEventListener('click', checkCardStatus);
+
+        // Allow pressing 'Enter' in the textbox to trigger the check
+        esnInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevents default form submission
+                checkCardStatus();
+            }
+        });
+    </script>
+</body>
+</html>
