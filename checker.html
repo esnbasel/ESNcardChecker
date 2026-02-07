@@ -190,7 +190,8 @@
                 return;
             }
             const originalUrl = `https://esncard.org/services/1.0/card.json?code=${esnCode}`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(originalUrl)}`;
+            // using api.allorigins.win 'raw' endpoint to get the JSON directly
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(originalUrl)}`;
 
             statusDiv.className = '';
             statusDiv.style.display = 'block';
