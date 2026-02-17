@@ -184,44 +184,55 @@
 
         // --- API Checking Logic ---
         const checkCardStatus = async () => {
-            const esnCode = esnInput.value.trim();
-            if (!esnCode) {
-                alert("Please enter an ESNcard number.");
-                return;
-            }
-            const originalUrl = `https://esncard.org/services/1.0/card.json?code=${esnCode}`;
-            // using api.allorigins.win 'raw' endpoint to get the JSON directly
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(originalUrl)}`;
+    const esnCode = esnInput.value.trim();
+    if (!esnCode) { alert("Code manquant"); return; }
 
-            statusDiv.className = '';
-            statusDiv.style.display = 'block';
-            statusDiv.textContent = 'Checking... 🤔';
+    // C'est l'URL de VOTRE Worker Cloudflare (vous la trouvez sur votre dashboard Cloudflare)
+    // Elle ressemble à : https://esn-proxy.votre-nom.workers.dev
+    const workerUrl = `https://esn-proxy.votre-pseudo.workers.dev?code=${esnCode}`;
 
-            try {
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('Card not found or network error.');
-                const data = await response.json();
-                
-                if (Array.isArray(data) && data.length > 0) {
-                    const card = data[0];
-                    if (card.status === 'active') {
-                        statusDiv.className = 'active';
-                        statusDiv.innerHTML = `Activated ✅
-                            <span>Section: ${card['section-code']}</span>
-                            <span>Expires: ${card['expiration-date']}</span>`;
-                    } else {
-                        statusDiv.className = 'inactive';
-                        statusDiv.textContent = `Status: ${card.status} ❌`;
-                    }
-                } else {
-                    throw new Error('Invalid ESNcard number.');
-                }
-            } catch (error) {
-                console.error('Error fetching card data:', error);
-                statusDiv.className = 'inactive';
-                statusDiv.textContent = 'Inactive or Invalid ❌';
-            }
-        };
+    statusDiv.className = '';
+    statusDiv.style.display = 'block';
+    statusDiv.textContent = 'Checking... 🤔';
+
+    try {
+        const response = await fetch(workerUrl);
+        if (!response.ok) throw new Error('Erreur réseau');
+        
+        // ScrapingAnt renvoie les données dans une enveloppe
+        const antData = await response.json();
+        
+        // Extraction du contenu réel (le JSON de la carte est dans une string)
+        let cardData;
+        try {
+             // On nettoie le HTML éventuel pour récupérer juste le JSON
+             const parser = new DOMParser();
+             const doc = parser.parseFromString(antData.content, 'text/html');
+             const textContent = doc.body.textContent || "";
+             cardData = JSON.parse(textContent);
+        } catch (e) {
+            throw new Error("Lecture impossible");
+        }
+
+        // Vérification habituelle
+        let card = null;
+        if (Array.isArray(cardData) && cardData.length > 0) card = cardData[0];
+        else if (cardData && cardData.status) card = cardData;
+
+        if (card && card.status === 'active') {
+            statusDiv.className = 'active';
+            statusDiv.innerHTML = `Valide ✅ <br> Fin: ${card['expiration-date']}`;
+        } else {
+            statusDiv.className = 'inactive';
+            statusDiv.textContent = 'Invalide ❌';
+        }
+
+    } catch (error) {
+        console.error(error);
+        statusDiv.className = 'inactive';
+        statusDiv.textContent = 'Erreur ou Invalide ❌';
+    }
+};
 
         // --- Barcode Scanning Logic ---
         function showScanner() {
