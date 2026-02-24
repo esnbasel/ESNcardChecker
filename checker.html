@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESNcard Status Checker</title>
-
+    
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
     <style>
@@ -22,14 +22,14 @@
         }
         body {
             display: flex;
-            flex-direction: column;
-            min-height: 100vh;
+            flex-direction: column; /* Lays out content vertically */
+            min-height: 100vh; /* Ensures body takes full screen height */
             margin: 0;
             background-color: var(--light-gray);
             color: var(--dark-gray);
         }
         main {
-            flex: 1;
+            flex: 1; /* Pushes the footer down */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -93,7 +93,7 @@
             border-radius: 8px;
             font-weight: bold;
             font-size: 1.2rem;
-            display: none;
+            display: none; /* Hidden by default */
         }
         #statusResult.active {
             background-color: #e8f5e9;
@@ -113,6 +113,7 @@
             margin-top: 0.5rem;
             font-weight: normal;
         }
+        /* Styles for the scanner view */
         #scannerContainer {
             width: 100%;
             text-align: center;
@@ -134,6 +135,7 @@
             font-weight: bold;
             cursor: pointer;
         }
+        /* Footer styling */
         footer {
             width: 100%;
             text-align: center;
@@ -141,7 +143,7 @@
             box-sizing: border-box;
             color: var(--mid-gray);
             font-size: 0.85rem;
-            flex-shrink: 0;
+            flex-shrink: 0; /* Prevents footer from shrinking */
         }
     </style>
 </head>
@@ -157,16 +159,16 @@
                 </div>
                 <div id="statusResult"></div>
             </div>
-
+            
             <div id="scannerContainer" style="display: none;">
                 <div id="reader"></div>
                 <button id="stopScanButton">Cancel</button>
             </div>
         </div>
     </main>
-
+    
     <footer>
-        <p>&copy; 2025 Flavien Martinot, ESN Switzerland</p>
+        <p>&copy; 2025-2026 Flavien Martinot, ESN Switzerland</p>
     </footer>
 
     <script>
@@ -178,74 +180,46 @@
         const stopScanBtn = document.getElementById('stopScanButton');
         const formContainer = document.getElementById('formContainer');
         const scannerContainer = document.getElementById('scannerContainer');
-        let html5QrCode; 
+        let html5QrCode; // Will hold the scanner instance
 
-        // --- API Checking Logic (via Cloudflare Worker) ---
+        // --- API Checking Logic ---
         const checkCardStatus = async () => {
             const esnCode = esnInput.value.trim();
             if (!esnCode) {
                 alert("Please enter an ESNcard number.");
                 return;
             }
-
-            const workerUrl = `https://esncard-proxy.baselesn.workers.dev/?code=${esnCode}`;
+            const originalUrl = `https://esncard.org/services/1.0/card.json?code=${esnCode}`;
+            // using api.allorigins.win 'raw' endpoint to get the JSON directly
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(originalUrl)}`;
 
             statusDiv.className = '';
             statusDiv.style.display = 'block';
             statusDiv.textContent = 'Checking... 🤔';
 
             try {
-                // On appelle VOTRE worker, pas esncard.org directement
-                const response = await fetch(workerUrl);
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Card not found or network error.');
+                const data = await response.json();
                 
-                if (!response.ok) {
-                    throw new Error('Erreur de connexion au proxy');
-                }
-                
-                // Le worker renvoie la réponse de ScrapingAnt
-                const antData = await response.json();
-
-                // Extraction et nettoyage de la réponse (ScrapingAnt renvoie le contenu dans 'content')
-                let cardData;
-                try {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(antData.content, 'text/html');
-                    const textContent = doc.body.textContent || "";
-                    cardData = JSON.parse(textContent);
-                } catch (e) {
-                    console.error("Erreur parsing:", e);
-                    throw new Error("Impossible de lire la carte (Protection Cloudflare active?)");
-                }
-
-                // Vérification du statut de la carte
-                let card = null;
-                if (Array.isArray(cardData) && cardData.length > 0) {
-                    card = cardData[0];
-                } else if (cardData && cardData.status) {
-                    card = cardData;
-                }
-
-                if (card && card.status === 'active') {
-                    statusDiv.className = 'active';
-                    statusDiv.innerHTML = `Activated ✅
-                        <span>Section: ${card['section-code'] || 'N/A'}</span>
-                        <span>Expires: ${card['expiration-date'] || 'N/A'}</span>`;
-                } else if (card) {
-                    statusDiv.className = 'inactive';
-                    statusDiv.textContent = `Status: ${card.status} ❌`;
+                if (Array.isArray(data) && data.length > 0) {
+                    const card = data[0];
+                    if (card.status === 'active') {
+                        statusDiv.className = 'active';
+                        statusDiv.innerHTML = `Activated ✅
+                            <span>Section: ${card['section-code']}</span>
+                            <span>Expires: ${card['expiration-date']}</span>`;
+                    } else {
+                        statusDiv.className = 'inactive';
+                        statusDiv.textContent = `Status: ${card.status} ❌`;
+                    }
                 } else {
-                    throw new Error('Card not found');
+                    throw new Error('Invalid ESNcard number.');
                 }
-
             } catch (error) {
-                console.error('Check failed:', error);
+                console.error('Error fetching card data:', error);
                 statusDiv.className = 'inactive';
-                
-                if (error.message.includes('Card not found')) {
-                    statusDiv.textContent = 'Card Invalid / Not Found ❌';
-                } else {
-                    statusDiv.textContent = `Erreur système ⚠️`;
-                }
+                statusDiv.textContent = 'Inactive or Invalid ❌';
             }
         };
 
@@ -253,31 +227,32 @@
         function showScanner() {
             formContainer.style.display = 'none';
             scannerContainer.style.display = 'block';
-
+            
             if (!html5QrCode) {
                 html5QrCode = new Html5Qrcode("reader");
             }
-
+            
             const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                // Fix for symbology identifier prefixes in barcodes
                 let cleanedText = decodedText;
                 if (cleanedText.startsWith(']C1')) {
                     cleanedText = cleanedText.substring(3);
                 }
 
-                esnInput.value = cleanedText; 
+                esnInput.value = cleanedText; // Use the cleaned text
                 hideScanner();
                 checkCardStatus();
             };
-
+            
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
+            
             html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
                 .catch(err => {
-                    alert("Could not start scanner. Please grant camera permission.");
+                    alert("Could not start scanner. Please grant camera permission and try again.");
                     hideScanner();
                 });
         }
-
+        
         function hideScanner() {
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().catch(err => console.error("Failed to stop scanner.", err));
@@ -285,7 +260,7 @@
             scannerContainer.style.display = 'none';
             formContainer.style.display = 'block';
         }
-
+        
         // --- Event Listeners ---
         checkBtn.addEventListener('click', checkCardStatus);
         esnInput.addEventListener('keypress', (event) => {
