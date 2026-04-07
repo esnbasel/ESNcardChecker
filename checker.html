@@ -14,20 +14,20 @@
         body { display: flex; flex-direction: column; min-height: 100vh; margin: 0; background-color: var(--light-gray); color: var(--dark-gray); }
         main { flex: 1; display: flex; justify-content: center; align-items: center; padding: 1rem; }
         .container { width: 90%; max-width: 400px; padding: 2rem; background-color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); text-align: center; }
-        h1 { color: var(--primary-color); margin-top: 0; margin-bottom: 1.5rem; font-size: 1.8rem; }
+        h1 { color: var(--primary-color); margin-bottom: 1.5rem; font-size: 1.8rem; }
         #esnCodeInput { width: 100%; padding: 12px; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
         .button-group { display: flex; gap: 0.5rem; }
-        .button-group button { width: 100%; padding: 14px; color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .button-group button { width: 100%; padding: 14px; color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
         #checkButton { background-color: var(--primary-color); }
         #scanButton { background-color: #555; }
-        #statusResult { margin-top: 1.5rem; padding: 1rem; border-radius: 8px; font-weight: bold; font-size: 1.2rem; display: none; }
+        #statusResult { margin-top: 1.5rem; padding: 1rem; border-radius: 8px; font-weight: bold; display: none; transition: 0.2s; }
         #statusResult.active { background-color: #e8f5e9; color: var(--green-color); border: 1px solid var(--green-color); display: block; }
         #statusResult.inactive { background-color: #ffebee; color: var(--red-color); border: 1px solid var(--red-color); display: block; }
-        #statusResult span { display: block; font-size: 0.9rem; margin-top: 0.5rem; font-weight: normal; color: #444; text-align: left; }
+        #statusResult span { display: block; font-size: 0.85rem; margin-top: 0.4rem; font-weight: normal; color: #444; text-align: left; }
         #scannerContainer { width: 100%; text-align: center; display: none; }
         #reader { border: 2px solid #eee; border-radius: 8px; overflow: hidden; }
-        #stopScanButton { margin-top: 1rem; width: 100%; padding: 12px; background-color: var(--red-color); color: white; border: none; border-radius: 8px; cursor: pointer; }
-        footer { width: 100%; text-align: center; padding: 1rem; color: #777; font-size: 0.85rem; }
+        #stopScanButton { margin-top: 1rem; width: 100%; padding: 12px; background-color: var(--red-color); color: white; border: none; border-radius: 8px; }
+        footer { text-align: center; padding: 1rem; color: #777; font-size: 0.8rem; }
     </style>
 </head>
 <body>
@@ -35,24 +35,20 @@
         <div class="container">
             <div id="formContainer">
                 <h1>ESNcard Checker</h1>
-                <input type="text" id="esnCodeInput" placeholder="Enter card number (e.g. 2068...)">
+                <input type="text" id="esnCodeInput" placeholder="Enter card number...">
                 <div class="button-group">
                     <button id="checkButton">Check Status</button>
                     <button id="scanButton">📷 Scan</button>
                 </div>
                 <div id="statusResult"></div>
             </div>
-            
             <div id="scannerContainer">
                 <div id="reader"></div>
                 <button id="stopScanButton">Cancel</button>
             </div>
         </div>
     </main>
-    
-    <footer>
-        <p>&copy; 2026 Flavien Martinot, ESN Switzerland</p>
-    </footer>
+    <footer>&copy; 2026 Flavien Martinot, ESN Switzerland</footer>
 
     <script>
         const esnInput = document.getElementById('esnCodeInput');
@@ -60,73 +56,66 @@
 
         const checkCardStatus = async () => {
             const code = esnInput.value.trim();
-            if (!code) return alert("Please enter a card number.");
+            if (!code) return;
 
             statusDiv.className = '';
             statusDiv.style.display = 'block';
-            statusDiv.innerHTML = 'Connecting... ⏳';
+            statusDiv.innerHTML = '⚡ Fetching...';
 
-            const targetUrl = `https://esncard.org/services/1.0/card.json?code=${code}`;
+            const target = `https://esncard.org/services/1.0/card.json?code=${code}`;
             
-            // Using Codetabs as primary proxy for better reliability
-            const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+            // Race multiple proxies at once. First one to finish wins.
+            const proxyUrls = [
+                `https://corsproxy.io/?${encodeURIComponent(target)}`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(target)}`
+            ];
 
             try {
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-                
-                const data = await response.json();
-                
-                // Debugging: If you get an error, check the browser console (F12)
-                console.log("Card Data Received:", data);
+                // Promise.any takes the fastest successful response
+                const response = await Promise.any(proxyUrls.map(url => 
+                    fetch(url).then(res => {
+                        if (res.ok) return res.json();
+                        throw new Error();
+                    })
+                ));
 
-                const card = Array.isArray(data) ? data[0] : data;
+                const card = Array.isArray(response) ? response[0] : response;
 
                 if (card && card.status === 'active') {
                     statusDiv.className = 'active';
                     statusDiv.innerHTML = `Activated ✅
-                        <hr style="border:0; border-top:1px solid #c8e6c9; margin: 10px 0;">
-                        <span><strong>Card:</strong> ${card.code}</span>
                         <span><strong>Section:</strong> ${card['section-code']}</span>
                         <span><strong>Issued:</strong> ${card['activation date'] || 'N/A'}</span>
                         <span><strong>Expires:</strong> ${card['expiration-date']}</span>`;
-                } else if (card && card.status) {
-                    statusDiv.className = 'inactive';
-                    statusDiv.textContent = `Status: ${card.status.toUpperCase()} ❌`;
                 } else {
                     statusDiv.className = 'inactive';
-                    statusDiv.textContent = 'Card Not Found ❌';
+                    statusDiv.textContent = 'Invalid or Inactive ❌';
                 }
-            } catch (error) {
-                console.error("Fetch Error:", error);
+            } catch (err) {
                 statusDiv.className = 'inactive';
-                statusDiv.innerHTML = `Connection Error ❌<br><span style="font-size:0.7rem; color: #888;">Try again or use a different network.</span>`;
+                statusDiv.textContent = 'Connection Error ❌';
             }
         };
 
-        // --- Scanner Functions ---
+        // --- Scanning logic ---
         let html5QrCode;
         function showScanner() {
             document.getElementById('formContainer').style.display = 'none';
             document.getElementById('scannerContainer').style.display = 'block';
             if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-            
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+            html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => {
                 esnInput.value = text.startsWith(']C1') ? text.substring(3) : text;
                 hideScanner();
                 checkCardStatus();
-            }).catch(() => {
-                alert("Camera access failed.");
-                hideScanner();
-            });
+            }).catch(() => { alert("Camera error."); hideScanner(); });
         }
-        
         function hideScanner() {
             if (html5QrCode?.isScanning) html5QrCode.stop();
             document.getElementById('scannerContainer').style.display = 'none';
             document.getElementById('formContainer').style.display = 'block';
         }
-        
+
         document.getElementById('checkButton').addEventListener('click', checkCardStatus);
         document.getElementById('scanButton').addEventListener('click', showScanner);
         document.getElementById('stopScanButton').addEventListener('click', hideScanner);
